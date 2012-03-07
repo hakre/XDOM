@@ -26,7 +26,25 @@ class XDOM_CssParserTest extends PHPUnit_Framework_TestCase
 
     public function provideSelectors()
     {
+
         $selectors = array(
+            // Examples taken from: http://www.w3.org/TR/selectors/#selector-syntax
+
+            // 2. Selectors (Summary table)
+            '*', 'E', 'E[foo]', 'E[foo="bar"]', 'E[foo~="bar"]', 'E[foo^="bar"]', 'E[foo$="bar"]', 'E[foo*="bar"]',
+            'E[foo|="en"]', 'E:root', 'E:nth-child(n)', 'E:nth-last-child(n)', 'E:nth-of-type(n)',
+            'E:nth-last-of-type(n)', 'E:first-child', 'E:last-child', 'E:first-of-type', 'E:last-of-type',
+            'E:only-child', 'E:only-of-type', 'E:empty', 'E:link', 'E:visited', 'E:active', 'E:hover', 'E:focus',
+            'E:target', 'E:lang(fr)', 'E:enabled', 'E:disabled', 'E:checked', 'E::first-line', 'E::first-letter',
+            'E::before', 'E::after', 'E.warning', 'E#myid', 'E:not(s)', 'E F', 'E > F', 'E + F', 'E ~ F',
+
+            // 6.1. Type selector
+            'h1',
+            'ns|E', '*|E', '|E', 'E', #6.1.1. Type selectors and namespaces
+            'foo|h1', 'foo|*', '|h1', '*|h1',
+
+            // 6.2. Universal selector
+            '*[hreflang|=en]', '[hreflang|=en]', '*.warning', '.warning', '*#myid', '#myid',
             // 6.3. Attribute selectors
 
             // 6.3.1. Attribute presence and value selectors
@@ -47,10 +65,9 @@ class XDOM_CssParserTest extends PHPUnit_Framework_TestCase
             'a[rel~="copyright"]', 'a[href="http://www.w3.org/"]',
             'a[hreflang=fr]', 'a[hreflang|="en"]',
 
-            # @todo unknown / combinator? -> add to test later on
             # The following selectors represent a DIALOGUE element whenever it has one of two different values for an
             # attribute character:
-            // 'DIALOGUE[character=romeo] DIALOGUE[character=juliet]',
+            'DIALOGUE[character=romeo] DIALOGUE[character=juliet]',
 
             // 6.3.2. Substring matching attribute selectors
             // Three additional attribute selectors are provided for matching substrings in the value of an attribute:
@@ -81,12 +98,41 @@ class XDOM_CssParserTest extends PHPUnit_Framework_TestCase
             'a:focus', 'a:focus:hover',
             'p.note:target', '*:target', '*:target::before', # 6.6.2. The target pseudo-class :target
             'html:lang(fr-be)', 'html:lang(de)', # 6.6.3. The language pseudo-class :lang
-            // @todo combinator not yet finished
-            // ':lang(fr-be) > q', ':lang(de) > q',
+            ':lang(fr-be) > q', ':lang(de) > q',
             ':enabled', ':disabled', ':checked', ':indeterminate', # 6.6.4. The UI element states pseudo-classes
             ':root', # 6.6.5. Structural pseudo-classes
-            'tr:nth-child(2n+1)', 'tr:nth-child(odd)', 'tr:nth-child(2n+0)', 'tr:nth-child(even)', 'p:nth-child(4n+1)', 'p:nth-child(4n+2)',
-            ':nth-child(10n-1)', ':nth-child(10n+9)', ':nth-child(10n+-1)'
+            'tr:nth-child(2n+1)', 'tr:nth-child(odd)', #6.6.5.2. :nth-child() pseudo-class
+            'tr:nth-child(2n+0)', 'tr:nth-child(even)', 'p:nth-child(4n+1)', 'p:nth-child(4n+2)',
+            ':nth-child(10n-1)', ':nth-child(10n+9)', ':nth-child(10n+-1)',
+            'foo:nth-child(0n+5)', 'foo:nth-child(5)',
+            'bar:nth-child(1n+0)', 'bar:nth-child(n+0)', 'bar:nth-child(n)', 'bar',
+            'tr:nth-child(2n+0)', 'tr:nth-child(2n)',
+            ':nth-child( 3n + 1 )', ':nth-child( +3n - 2 )', ':nth-child( -n+ 6)', ':nth-child( +6 )',
+            // invalid: (nth has it's own additional grammar)
+            ':nth-child(3 n)', ':nth-child(+ 2n)', ':nth-child(+ 2)',
+            'html|tr:nth-child(-n+6)', /* represents the 6 first rows of XHTML tables */
+            'tr:nth-last-child(-n+2)', 'foo:nth-last-child(odd)', #6.6.5.3. :nth-last-child() pseudo-class
+            'img:nth-of-type(2n+1)', 'img:nth-of-type(2n)', #6.6.5.4. :nth-of-type() pseudo-class
+            'div > p:first-child', '* > a:first-child', 'a:first-child', #6.6.5.6. :first-child pseudo-class
+            'ol > li:last-child', #6.6.5.7. :last-child pseudo-class
+            'dl dt:first-of-type', 'tr > td:last-of-type', #6.6.5.8. :first-of-type pseudo-class ...
+            'a:only-child', 'a::only-of-type',
+            'p:empty',
+            # 6.6.7. The negation pseudo-class
+            // invalid: ':not(:not(a))', @todo give it's own failing test because grammar does not allow it.
+            'button:not([DISABLED])', '*:not(FOO)', 'html|*:not(:link):not(:visited)',
+            '*|*:not(*)', '*|*:not(:hover)',
+
+            // 7. Pseudo-elements
+            'p::first-line', 'p::first-letter', 'p::first-line',
+            '::before', '::after',
+
+            // 8. Combinators
+            'h1 em', 'div * p', 'div p *[href]', #8.1. Descendant combinator
+            'body > p', 'div ol>li p', #8.2. Child combinators
+            'math + p', 'h1.opener + h2', #8.3. Sibling combinators
+            'h1 ~ pre', #8.3.2. General sibling combinator
+
         );
 
         $data = array();
@@ -112,22 +158,6 @@ class XDOM_CssParserTest extends PHPUnit_Framework_TestCase
     {
         $parser = $this->object;
 
-        // type_selector, namespace_prefix, element_name, universal
-        $parser->parse('*');
-        $this->assertEquals(1, $parser->key());
-        $parser->parse('div');
-        $this->assertEquals(3, $parser->key());
-        $parser->parse('|div');
-        $this->assertEquals(4, $parser->key());
-        $parser->parse('*|div');
-        $this->assertEquals(5, $parser->key());
-        $parser->parse('ns|div');
-        $this->assertEquals(6, $parser->key());
-        $parser->parse('ns|*');
-        $this->assertEquals(4, $parser->key());
-        $parser->parse('*|*');
-        $this->assertEquals(3, $parser->key());
-
         // selectors_group
         $parser->parse('div, div');
         $this->assertEquals(8, $parser->key());
@@ -140,9 +170,17 @@ class XDOM_CssParserTest extends PHPUnit_Framework_TestCase
         $parser = $this->object;
 
         // :lang(de)
-        $test = '*:lang(de)';
-        $parser->parse($test);
-        $this->assertEquals(strlen($test), $parser->key());
+        // :lang(fr-be) > q
+        // button:not([DISABLED])
+        // .warning
+        $test = 'div /*test comment*/'; //combinator triggered not avail
+        try {
+            $parser->parse($test);
+            $this->fail();
+        } catch (Exception $e) {
+            $message = $e->getMessage();
+            $this->assertEquals('PARSE ERROR: expect production: [selector] at 0.', $message);
+        }
     }
 
     public function testComments()
@@ -150,9 +188,12 @@ class XDOM_CssParserTest extends PHPUnit_Framework_TestCase
         $parser = $this->object;
 
         // skip comments
-        $parser->parse('*|/* this div must have a namespace */div');
-        $this->assertEquals(41, $parser->key());
+        $test = '*|/* this div must have a namespace */div';
+        $parser->parse($test);
+        $this->assertEquals(strlen($test), $parser->key());
+
+        $test = 'div /* this div has a comment "in" it\'s combinator */ div';
+        $parser->parse($test);
+        $this->assertEquals(strlen($test), $parser->key());
     }
 }
-
-?>

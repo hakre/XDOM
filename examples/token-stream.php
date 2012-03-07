@@ -39,7 +39,7 @@ foreach ($subjects as $subject)
 }
 
 /*
- * manual token opeartion:
+ * manual token operation:
  */
 foreach ($subjects as $subject)
 {
@@ -57,8 +57,4 @@ foreach ($subjects as $subject)
     }
     echo "\nFinished parsing: $offset/", strlen($subject), "\n\n";
 }
-
-
-
-// var_dump($tokenizer);
 

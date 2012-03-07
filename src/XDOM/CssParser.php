@@ -88,8 +88,6 @@ class XDOM_CssParser implements Iterator
     {
         if (!$this->expectP('simple_selector_sequence')) return FALSE;
 
-        // @todo incomplete (only if at end here then okay)
-
         while ($this->acceptP('combinator'))
         {
             if (!$this->expectP('simple_selector_sequence')) return FALSE;
@@ -99,34 +97,21 @@ class XDOM_CssParser implements Iterator
 
     private function combinator()
     {
-        // @todo incomplete
-        return FALSE;
+        if (!$this->acceptGroupOr(array('PLUS', 'GREATER', 'TILDE'))) {
+            if (!$this->expect('S')) return FALSE;
+        }
+        while ($this->accept('S')) ;
+        return TRUE;
     }
 
     private function simple_selector_sequence()
     {
-        # simple_selector_sequence
-        #   : [ type_selector | universal ]
-        #     <G1>[ HASH | class | attrib | pseudo | negation ]*
-        #     | <G1>[ HASH | class | attrib | pseudo | negation ]+
-        #   ;
-
+        $group = array('HASH', '_class', 'attrib', 'pseudo', 'negation');
         if (!($this->acceptP('type_selector') || $this->acceptP('universal'))) {
-            if (!$this->expectP('simple_selector_sequence_G1')) return FALSE;
+            if (!$this->acceptGroupOr($group)) return FALSE;
         }
-        while ($this->acceptP('simple_selector_sequence_G1')) ;
+        while ($this->acceptGroupOr($group)) ;
         return TRUE;
-    }
-
-    private function simple_selector_sequence_G1()
-    {
-        # HASH | class | attrib | pseudo | negation
-        if ($this->accept('HASH')) return TRUE;
-        if ($this->acceptP('_class')) return TRUE;
-        if ($this->acceptP('attrib')) return TRUE;
-        if ($this->acceptP('pseudo')) return TRUE;
-        if ($this->acceptP('negation')) return TRUE;
-        return FALSE;
     }
 
     private function type_selector()
@@ -162,16 +147,6 @@ class XDOM_CssParser implements Iterator
 
     private function attrib()
     {
-        # attrib
-        #   : '[' S* [ namespace_prefix ]? IDENT S*
-        #     <G1>[ [ PREFIXMATCH |
-        #             SUFFIXMATCH |
-        #             SUBSTRINGMATCH |
-        #             '=' |
-        #             INCLUDES |
-        #             DASHMATCH ] S* [ IDENT | STRING ] S*
-        #         ]? ']'
-        #   ;
         if (!$this->expectC('[')) return FALSE;
         while ($this->accept('S')) ;
         $this->acceptP('namespace_prefix');
@@ -184,9 +159,9 @@ class XDOM_CssParser implements Iterator
 
     private function attrib_G1()
     {
-        if (!$this->expectGrammarOrString("PREFIXMATCH | SUFFIXMATCH | SUBSTRINGMATCH | '=' | INCLUDES | DASHMATCH")) return FALSE;
+        if (!$this->expectGroupOr(array('PREFIXMATCH', 'SUFFIXMATCH', 'SUBSTRINGMATCH', "'='", 'INCLUDES', 'DASHMATCH'))) return FALSE;
         while ($this->accept('S')) ;
-        if (!$this->expectGrammarOrString("IDENT | STRING")) return FALSE;
+        if (!$this->expectGroupOr(array("IDENT", "STRING"))) return FALSE;
         while ($this->accept('S')) ;
         return TRUE;
     }
@@ -195,7 +170,7 @@ class XDOM_CssParser implements Iterator
     {
         if (!$this->expectC(':')) return FALSE;
         $this->acceptC(':');
-        if (!$this->expectGrammarOr(array('IDENT', 'functional_pseudo'))) return FALSE;
+        if (!$this->expectGroupOr(array('IDENT', 'functional_pseudo'))) return FALSE;
 
         return TRUE;
     }
@@ -212,7 +187,7 @@ class XDOM_CssParser implements Iterator
     private function expression()
     {
         $match = FALSE;
-        while ($this->expectGrammarOrString("PLUS | '-' | DIMENSION | NUMBER | STRING | IDENT"))
+        while ($this->expectGroupOr(array('PLUS', "'-'", 'DIMENSION', 'NUMBER', 'STRING', 'IDENT')))
         {
             $match = TRUE;
             while ($this->accept('S')) ;
@@ -226,45 +201,24 @@ class XDOM_CssParser implements Iterator
         while ($this->accept('S')) ;
         if (!$this->expectP('negation_arg')) return FALSE;
         while ($this->accept('S')) ;
-        if ($this->expectC(')')) return FALSE;
+        if (!$this->expectC(')')) return FALSE;
         return TRUE;
     }
 
     private function negation_arg()
     {
-        return $this->expectGrammarOr("type_selector | universal | HASH | class | attrib | pseudo");
+        return $this->expectGroupOr(array('type_selector', 'universal', 'HASH', '_class', 'attrib', 'pseudo'));
     }
 
     private function error($message)
     {
         $message = str_replace("\n", '/ ', $message);
-        // echo "PARSE ERROR: $message\n";
         if (!$this->peek) {
             throw new Exception(sprintf('PARSE ERROR: %s at %d.', $message, $this->offset));
         }
     }
 
-    private function acceptGrammarOrString($grammar)
-    {
-        $orParts = preg_split('/\\s+\\|\\s+/', $grammar);
-        foreach ($orParts as $part)
-        {
-            $term = trim($part);
-            if ('' === $term) throw new Exception(sprintf('Empty term "%s".', $term));
-            if (FALSE !== strpos($term, ' ')) throw new Exception(sprintf('Invalid term "%s".', $term));
-            if ($this->acceptTerm($term)) return TRUE;
-        }
-        return FALSE;
-    }
-
-    private function expectGrammarOrString($grammar)
-    {
-        if ($this->acceptGrammarOrString($grammar)) return TRUE;
-        $this->error("expect: [$grammar]");
-        return FALSE;
-    }
-
-    private function acceptGrammarOr(array $grammar)
+    private function acceptGroupOr(array $grammar)
     {
         while (list(, $term) = each($grammar)) {
             if ($this->acceptTerm($term)) return TRUE;
@@ -272,10 +226,10 @@ class XDOM_CssParser implements Iterator
         return FALSE;
     }
 
-    private function expectGrammarOr(array $grammar)
+    private function expectGroupOr(array $grammar)
     {
-        if ($this->acceptGrammarOr($grammar)) return TRUE;
-        $this->error("expect: [" . implode(' | ', $grammar) . "].");
+        if ($this->acceptGroupOr($grammar)) return TRUE;
+        $this->error("expect group: [" . implode(' | ', $grammar) . "].");
         return FALSE;
     }
 
@@ -285,7 +239,7 @@ class XDOM_CssParser implements Iterator
         if ("'" === $tc) {
             // @note not utf-8 for chars not within single byte range (normally not the case)
             if (!$this->acceptC($term[1])) return FALSE;
-        } elseif (strtoupper($tc) === $tc) {
+        } elseif ((strtoupper($tc) === $tc) && '_' !== $tc) {
             if (!$this->accept($term)) return FALSE;
         } else {
             if (!$this->acceptP($term)) return FALSE;
@@ -308,7 +262,7 @@ class XDOM_CssParser implements Iterator
     private function expectP($production)
     {
         if ($this->acceptP($production)) return TRUE;
-        $this->error("expect: [$production] unexpected @ token: " . print_r($this->current(), 1));
+        $this->error("expect production: [$production]");
         return FALSE;
     }
 
@@ -323,7 +277,7 @@ class XDOM_CssParser implements Iterator
     private function expectC($character)
     {
         if ($this->acceptC($character)) return TRUE;
-        $this->error("expectC: [$character] unexpected character: " . print_r($this->current(), 1));
+        $this->error("expect character: [$character]");
         return FALSE;
     }
 
@@ -340,7 +294,7 @@ class XDOM_CssParser implements Iterator
     private function expect($symbol)
     {
         if ($this->accept($symbol)) return TRUE;
-        $this->error("expect: [$symbol] unexpected symbol: " . print_r($this->current(), 1));
+        $this->error("expect symbol: [$symbol]");
         return FALSE;
     }
 
