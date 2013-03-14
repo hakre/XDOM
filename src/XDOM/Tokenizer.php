@@ -151,7 +151,7 @@ class XDOM_Tokenizer
         } while ($continue);
 
         if (count($tokens)) {
-            throw new Exception('Not all defs have been expanded:', print_r($tokens));
+            throw new Exception(sprintf('Not all defs have been expanded: %s', print_r($tokens, true)));
         }
 
         $this->defsRegex = $expanded;
